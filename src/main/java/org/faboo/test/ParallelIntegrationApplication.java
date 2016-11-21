@@ -3,6 +3,7 @@ package org.faboo.test;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.context.annotation.Bean;
+import org.springframework.integration.aggregator.CorrelationStrategy;
 import org.springframework.integration.core.MessageSource;
 import org.springframework.integration.dsl.IntegrationFlow;
 import org.springframework.integration.dsl.IntegrationFlows;
@@ -28,8 +29,9 @@ public class ParallelIntegrationApplication {
         return source;
     }
 
-    private void logMessage(Message message) {
+    private Message logMessage(Message message) {
         System.out.println("logMessage: " + message.getPayload() + " on thread " + Thread.currentThread().getName());
+        return message;
     }
 
     @Bean
@@ -47,7 +49,7 @@ public class ParallelIntegrationApplication {
                     }
                     return payload;
                 })
-                .handle(this::logMessage)
+                .wireTap(sf -> sf.handle(this::logMessage))
                 .aggregate(a ->
                         a.releaseStrategy(g -> g.size()>10)
                          .outputProcessor(g ->
@@ -55,7 +57,12 @@ public class ParallelIntegrationApplication {
                                          .stream()
                                          .map(e -> e.getPayload().toString())
                                          .collect(Collectors.joining(",")))
-
+                         .correlationStrategy(new CorrelationStrategy() {
+                             @Override
+                             public Object getCorrelationKey(Message<?> message) {
+                                 return "foo";
+                             }
+                         })
                          )
                 .handle(this::logMessage)
                 .get();
