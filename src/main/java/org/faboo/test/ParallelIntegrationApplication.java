@@ -4,7 +4,6 @@ import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.context.annotation.Bean;
 import org.springframework.integration.core.MessageSource;
-import org.springframework.integration.dsl.Channels;
 import org.springframework.integration.dsl.IntegrationFlow;
 import org.springframework.integration.dsl.IntegrationFlows;
 import org.springframework.integration.dsl.channel.MessageChannels;
@@ -13,15 +12,13 @@ import org.springframework.integration.dsl.support.GenericHandler;
 import org.springframework.integration.endpoint.MethodInvokingMessageSource;
 import org.springframework.messaging.Message;
 
-import java.util.Map;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.stream.Collectors;
 
 @SpringBootApplication
 public class ParallelIntegrationApplication {
-
-
 
     @Bean
     public MessageSource<?> integerMessageSource() {
@@ -50,7 +47,16 @@ public class ParallelIntegrationApplication {
                     }
                     return payload;
                 })
-                .channel(Channels::direct)
+                .handle(this::logMessage)
+                .aggregate(a ->
+                        a.releaseStrategy(g -> g.size()>10)
+                         .outputProcessor(g ->
+                                 g.getMessages()
+                                         .stream()
+                                         .map(e -> e.getPayload().toString())
+                                         .collect(Collectors.joining(",")))
+
+                         )
                 .handle(this::logMessage)
                 .get();
 
